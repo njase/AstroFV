@@ -2,16 +2,25 @@ from __future__ import division
 from TestRoot import AbstractTest, Params
 from IVBV_Root import InitialValues, BoundaryValues
 import numpy as np
+#from ODESolver import ODEExplicit
 
 
-class RSTPParams(Params):
+class RSTPExplicitParams(Params):
     def __init__(self):
         Params.__init__(self) 
         self.gamma = 0
         self.cfl = 0.25
         self.ncells = 10
+        self.fv_boundary_strategy = None
 
-
+class RSTPImplicitParams(Params):
+    def __init__(self):
+        Params.__init__(self) 
+        self.gamma = 0
+        self.cfl = 1.0
+        self.ncells = 10
+        self.fv_boundary_strategy = None
+        
 class RSTPIV(InitialValues):
     def __init__(self,Vx,Mx,D,Rho):
         self.Vx = Vx
@@ -51,23 +60,30 @@ class RSTPBV(BoundaryValues):
     def distribute_bry(self,N,var):
         pass
 
-
+    
 class RSTPTest(AbstractTest):
     '''
       ode_strategy = implicit/explicit
     '''
     def __init__(self,params,initval,bryval,ode_strategy=None):
         self.params = params
-        #self.odesolver = ode_strategy
+        if ode_strategy:
+            self.odesolver = ode_strategy(self.params.fv_boundary_strategy)
         self.initval = initval
         self.bryval = bryval
+        self.D_eqid = 1
+        self.M_eqid = 2
+        self.E_eqid = 3
 
-    def solve(self):
+
+    def solve(self):    
+        #Define grid
         delta_x = (self.params.xmax - self.params.xmin)/self.params.ncells
         numj = self.params.ncells + 1
         delta_t = self.params.cfl*delta_x
         nsteps = int((self.params.tmax-self.params.tmin)//delta_t) #Time steps
-
+        
+        #Set initial and boundary values
         Vxn = self.initval.get_init_Vx(numj)
         Mxn = self.initval.get_init_Mx(numj)
         Dn = self.initval.get_init_D(self.params.ncells)
@@ -75,16 +91,17 @@ class RSTPTest(AbstractTest):
         Pn = self.initval.get_init_P(numj)
         Edn = self.initval.get_init_Ed(numj)
 
-        identity_vec = np.ones(numj)
-
-        #for breaking simulation - when shock wave is 90% close to end boundary
+        #Stop condition - when shock wave is 90% close to end boundary
         xbreak = int(0.9*numj)-1
-        #break_sim = False
-
-        print("Simulation started for " + str(self.params.gamma))
- 
+        
+        #Define source terms for the non-conservative equations
+        #The equations are numbered as D = 1, M = 2, Ed = 3
+        self.odesolver.set_src(self.M_eqid,self.calculate_momentum_source)
+        
+        #Setup outer loop for time
+        # Use Explicit solver to solve the 3 equations without loop
+        # Do all the stuff
         for n in range(0,nsteps):
-            print(n)
             Dn_1 = self.solve_density_eqn(Dn,Vxn,delta_t,delta_x)
             Mxn_1 = self.solve_momentum_eqn(Mxn,Vxn,Pn,delta_t,delta_x)
             Edn_1 = Edn
@@ -92,7 +109,7 @@ class RSTPTest(AbstractTest):
             ### Update phase        
             Dh = self.calculate_Dh(self.params.gamma,Dn_1,Edn_1)
             Mt = self.calculate_Mt(Dh,Mxn_1)
-
+            
             #update Ut
             Utn_1 = self.update_Ut(Dh,Mt)
 
@@ -119,40 +136,22 @@ class RSTPTest(AbstractTest):
                 break
 
         print("Simulation stopped")
-        
+    
+    #Conservative equation solved in cell centered manner with Transvere boundary conditions
     def solve_density_eqn(self,Dn,Vx,delta_t,delta_x):
-        print(Dn)
-        numj  = len(Dn)
-        D = np.zeros_like(Dn)
-        mu = delta_t/delta_x
-        #take care of boundary for stability reasons in upwind
-        for j in range(1,numj-1): 
-            if Vx[j] > 0:
-                D[j] = Dn[j] - mu*(Dn[j]*Vx[j+1] - Dn[j-1]*Vx[j])
-            else:
-                D[j] = Dn[j] - mu*(Dn[j+1]*Vx[j+1] - Dn[j]*Vx[j])
-        #Transverse boundary
-        D[0] = D[1];
-        D[-1] = D[-2]
+        D = self.odesolver.solve_conservative_without_outerloop(delta_t,delta_x,Dn,Vx,cc=True)
         return D
-
+    
     def solve_momentum_eqn(self,Mxn,Vx,P,delta_t,delta_x):
-        numj  = len(Mxn)
-        M = np.zeros_like(Mxn)
-        mu = delta_t/delta_x
-        for j in range(1,numj-2):
-            Vxi_avg = (Vx[j]+Vx[j-1])/2
-            Vxj_avg = (Vx[j]+Vx[j+1])/2        
-            if Vxj_avg > 0:
-                M[j] = Mxn[j] - mu*(Mxn[j]*Vxj_avg - Mxn[j-1]*Vxi_avg) - mu*(P[j]-P[j-1])
-            else:
-                M[j] = Mxn[j] - mu*(Mxn[j+1]*Vxj_avg - Mxn[j]*Vxi_avg) - mu*(P[j]-P[j-1])
-        #Transverse boundary
-        M[0] = M[1]
-        M[-1] = M[-2]
+        self.temp_P = P #This is required to evaluate source term
+        M = self.odesolver.solve_non_conservative_without_outerloop(self.M_eqid,delta_t,delta_x,Mxn,Vx,cc=False)
         return M
-
-
+    
+    def calculate_momentum_source(self,delta_t,delta_x,j):
+        mu = delta_t/delta_x
+        S =  - mu*(self.temp_P[j] - self.temp_P[j-1])
+        return S
+    
     def calculate_Dh(self,gamma,D,Ed):
         if gamma == 0:
             Dh = D
@@ -167,7 +166,7 @@ class RSTPTest(AbstractTest):
         Mt[0:ncells] = np.sqrt(np.square(Dh) + np.square(Mx[0:ncells]))
         Mt[-1] = Mt[-2]
         return Mt
-
+    
     def update_Ut(self,Dh,Mt):
         ncells = len(Dh)
         Ut = np.zeros_like(Mt)
