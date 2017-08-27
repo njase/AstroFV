@@ -2,7 +2,7 @@ from __future__ import division
 from TestRoot import AbstractTest, Params
 from IVBV_Root import InitialValues, BoundaryValues
 import numpy as np
-#from ODESolver import ODEExplicit
+import matplotlib.pyplot as plt
 
 
 class RSTPExplicitParams(Params):
@@ -65,7 +65,8 @@ class RSTPTest(AbstractTest):
     '''
       ode_strategy = implicit/explicit
     '''
-    def __init__(self,params,initval,bryval,ode_strategy=None):
+    def __init__(self,test_id,params,initval,bryval,ode_strategy=None):
+        self.test_id = test_id
         self.params = params
         if ode_strategy:
             self.odesolver = ode_strategy(self.params.fv_boundary_strategy)
@@ -75,8 +76,72 @@ class RSTPTest(AbstractTest):
         self.M_eqid = 2
         self.E_eqid = 3
 
+    def init_figures(self):
+        self.fh_d = 1
+        self.ax_d = plt.figure(self.fh_d).add_subplot(111)
+        self.fh_v = 22
+        self.ax_v = plt.figure(self.fh_v).add_subplot(111)
+        self.fh_t = 3
+        self.ax_t = plt.figure(self.fh_t).add_subplot(111)
+        self.fh_u = 4
+        self.ax_u = plt.figure(self.fh_u).add_subplot(111)
+        self.fh_p = 5
+        self.ax_p = plt.figure(self.fh_p).add_subplot(111)
+                
+    def plot_figures(self,t,D,V,U,P):
+        self.ax_d.plot(D,label=str(t))
+        #self.ax_d.legend(str(t))
+        self.ax_v.plot(V,label=str(t)) 
+        #self.ax_v.legend(str(t))
+        #tau = 1./sqrt(identity_vec - (Vxn.^2))
+        #ax_t.plot(tau)
+        self.ax_u.plot(U,label=str(t))
+        #self.ax_u.legend(str(t))
+        self.ax_p.plot(P,label=str(t))
+        #self.ax_p.legend(str(t))
 
-    def solve(self):    
+    def save_figures(self):
+        plt.figure(self.fh_d)
+        self.ax_d.set_xlabel('x')
+        self.ax_d.set_ylabel('D(x,t)')
+        self.ax_d.set_title('Relativistic Density')
+        plt.legend(loc=1)
+        fpath = 'figs/' + str(self.test_id) + '_D_img.png'
+        plt.savefig(fpath)        
+        plt.close(self.fh_d)
+        
+        plt.figure(self.fh_v)
+        self.ax_v.set_xlabel('x')
+        self.ax_v.set_ylabel('Vx(x,t)')
+        self.ax_v.set_title('Velocity Vx')
+        plt.legend(loc=1)
+        fpath = 'figs/' + str(self.test_id) + '_V_img.png'
+        plt.savefig(fpath)
+        plt.close(self.fh_v)
+        
+        #self.ax_t.set_xlabel('x')
+        #self.ax_t.set_ylabel('Tau(x,t)')
+        #plt.close(3)
+        
+        plt.figure(self.fh_u)
+        self.ax_u.set_xlabel('x')
+        self.ax_u.set_ylabel('Ut(x,t)')
+        self.ax_u.set_title('Velocity Ut')
+        plt.legend(loc=1)
+        fpath = 'figs/' + str(self.test_id) + '_U_img.png'
+        plt.savefig(fpath)
+        plt.close(self.fh_u)
+        
+        plt.figure(self.fh_p)
+        self.ax_p.set_xlabel('x')
+        self.ax_p.set_ylabel('P(x,t)')
+        self.ax_p.set_title('Pressure')
+        plt.legend(loc=1)
+        fpath = 'figs/' + str(self.test_id) + '_P_img.png'
+        plt.savefig(fpath)
+        plt.close(self.fh_p)
+            
+    def solve(self,collect_cnt=10):    
         #Define grid
         delta_x = (self.params.xmax - self.params.xmin)/self.params.ncells
         numj = self.params.ncells + 1
@@ -93,7 +158,13 @@ class RSTPTest(AbstractTest):
 
         #Stop condition - when shock wave is 90% close to end boundary
         xbreak = int(0.9*numj)-1
+        break_sim = False
         
+        #Figure and stat collection
+        stats_counter = np.linspace(0,nsteps,collect_cnt,True,dtype=int)
+        col_index = 0
+        self.init_figures()
+                        
         #Define source terms for the non-conservative equations
         #The equations are numbered as D = 1, M = 2, Ed = 3
         self.odesolver.set_src(self.M_eqid,self.calculate_momentum_source)
@@ -132,9 +203,18 @@ class RSTPTest(AbstractTest):
 
             # If shock wave is close to the boundary, stop!
             if abs(Utn[xbreak]-min(Utn)) > 0.1:
-                #break_sim = True
+                break_sim = True
+
+            if (n == stats_counter[col_index] or break_sim) :           
+                t=n*delta_t
+                self.plot_figures(t,Dn,Vxn,Utn,Pn)                
+                col_index = col_index + 1
+
+            if break_sim:
+                print("Wave too close to boundary")           
                 break
 
+        self.save_figures()        
         print("Simulation stopped")
     
     #Conservative equation solved in cell centered manner with Transvere boundary conditions
