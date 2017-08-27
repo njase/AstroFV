@@ -6,19 +6,19 @@ import matplotlib.pyplot as plt
 
 
 class RSTPExplicitParams(Params):
-    def __init__(self):
+    def __init__(self,ncells,gamma=0,cfl=1.0):
         Params.__init__(self) 
-        self.gamma = 0
-        self.cfl = 0.25
-        self.ncells = 10
+        self.gamma = gamma
+        self.cfl = cfl
+        self.ncells = ncells
         self.fv_boundary_strategy = None
 
 class RSTPImplicitParams(Params):
-    def __init__(self):
+    def __init__(self,ncells,gamma=0):
         Params.__init__(self) 
-        self.gamma = 0
+        self.gamma = gamma
         self.cfl = 1.0
-        self.ncells = 10
+        self.ncells = ncells
         self.fv_boundary_strategy = None
         
 class RSTPIV(InitialValues):
@@ -90,15 +90,11 @@ class RSTPTest(AbstractTest):
                 
     def plot_figures(self,t,D,V,U,P):
         self.ax_d.plot(D,label=str(t))
-        #self.ax_d.legend(str(t))
         self.ax_v.plot(V,label=str(t)) 
-        #self.ax_v.legend(str(t))
         #tau = 1./sqrt(identity_vec - (Vxn.^2))
         #ax_t.plot(tau)
         self.ax_u.plot(U,label=str(t))
-        #self.ax_u.legend(str(t))
         self.ax_p.plot(P,label=str(t))
-        #self.ax_p.legend(str(t))
 
     def save_figures(self):
         plt.figure(self.fh_d)
@@ -106,7 +102,7 @@ class RSTPTest(AbstractTest):
         self.ax_d.set_ylabel('D(x,t)')
         self.ax_d.set_title('Relativistic Density')
         plt.legend(loc=1)
-        fpath = 'figs/' + str(self.test_id) + '_D_img.png'
+        fpath = self.params.fpath + str(self.test_id) + '_D_img.png'
         plt.savefig(fpath)        
         plt.close(self.fh_d)
         
@@ -115,7 +111,7 @@ class RSTPTest(AbstractTest):
         self.ax_v.set_ylabel('Vx(x,t)')
         self.ax_v.set_title('Velocity Vx')
         plt.legend(loc=1)
-        fpath = 'figs/' + str(self.test_id) + '_V_img.png'
+        fpath = self.params.fpath + str(self.test_id) + '_V_img.png'
         plt.savefig(fpath)
         plt.close(self.fh_v)
         
@@ -128,7 +124,7 @@ class RSTPTest(AbstractTest):
         self.ax_u.set_ylabel('Ut(x,t)')
         self.ax_u.set_title('Velocity Ut')
         plt.legend(loc=1)
-        fpath = 'figs/' + str(self.test_id) + '_U_img.png'
+        fpath = self.params.fpath + str(self.test_id) + '_U_img.png'
         plt.savefig(fpath)
         plt.close(self.fh_u)
         
@@ -137,11 +133,16 @@ class RSTPTest(AbstractTest):
         self.ax_p.set_ylabel('P(x,t)')
         self.ax_p.set_title('Pressure')
         plt.legend(loc=1)
-        fpath = 'figs/' + str(self.test_id) + '_P_img.png'
+        fpath = self.params.fpath + str(self.test_id) + '_P_img.png'
         plt.savefig(fpath)
         plt.close(self.fh_p)
             
-    def solve(self,collect_cnt=10):    
+    def neverStop(self):
+        return False
+    
+    def solve(self,stopFunc=None,collect_cnt=10):    
+        if stopFunc is None:
+            stopFunc = self.neverStop
         #Define grid
         delta_x = (self.params.xmax - self.params.xmin)/self.params.ncells
         numj = self.params.ncells + 1
@@ -162,7 +163,8 @@ class RSTPTest(AbstractTest):
         
         #Figure and stat collection
         stats_counter = np.linspace(0,nsteps,collect_cnt,True,dtype=int)
-        col_index = 0
+        print("Stats collect at location" + str(stats_counter))
+        col_index = 1 #Dont plot Initial condition
         self.init_figures()
                         
         #Define source terms for the non-conservative equations
@@ -205,13 +207,14 @@ class RSTPTest(AbstractTest):
             if abs(Utn[xbreak]-min(Utn)) > 0.1:
                 break_sim = True
 
-            if (n == stats_counter[col_index] or break_sim) :           
+            if (n == stats_counter[col_index] or break_sim) : 
+                print("collecting stats for n = " + str(n))          
                 t=n*delta_t
                 self.plot_figures(t,Dn,Vxn,Utn,Pn)                
                 col_index = col_index + 1
 
-            if break_sim:
-                print("Wave too close to boundary")           
+            if break_sim or stopFunc():
+                print("Wave too close to boundary or simulation stopped")           
                 break
 
         self.save_figures()        

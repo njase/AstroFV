@@ -4,13 +4,11 @@ import sys,os
 
 
 def main():
-    #Read input from external source like DB
- 
     #Params for explicit solver    
     params = RSTPExplicitParams() 
     params.gamma = 0
-    #params.cfl = 0.25
-    params.cfl = 1.0
+    params.cfl = 0.25
+    #params.cfl = 1.0
     params.fv_boundary_strategy = FVTransverse #Default, may also be skipped 
     iv = RSTPIV(Vx=[0,0],Mx=[0,0],D=[1,10**-2],Rho=[1,10**-2])
     bv = RSTPBV()
