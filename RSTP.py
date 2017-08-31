@@ -1,6 +1,7 @@
 from __future__ import division
 from TestRoot import AbstractTest, Params
 from IVBV_Root import InitialValues, BoundaryValues
+from RSTPSrc import RSTPSrc
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -12,14 +13,16 @@ class RSTPExplicitParams(Params):
         self.cfl = cfl
         self.ncells = ncells
         self.fv_boundary_strategy = None
+        #self.alpha is not defined
 
 class RSTPImplicitParams(Params):
-    def __init__(self,ncells,gamma=0):
+    def __init__(self,ncells,alpha,gamma=0):
         Params.__init__(self) 
         self.gamma = gamma
-        self.cfl = 1.0
         self.ncells = ncells
-        self.fv_boundary_strategy = None
+        self.alpha = alpha
+        self.fv_boundary_strategy = None        
+        self.cfl = 0.40 #This parameter is not user defined
         
 class RSTPIV(InitialValues):
     def __init__(self,Vx,Mx,D,Rho):
@@ -69,17 +72,18 @@ class RSTPTest(AbstractTest):
         self.test_id = test_id
         self.params = params
         if ode_strategy:
-            self.odesolver = ode_strategy(self.params.fv_boundary_strategy)
+            self.odesolver = ode_strategy(params)
         self.initval = initval
         self.bryval = bryval
         self.D_eqid = 1
         self.M_eqid = 2
         self.E_eqid = 3
+        self.src = RSTPSrc.factory(ode_strategy)(self.params)
 
     def init_figures(self):
         self.fh_d = 1
         self.ax_d = plt.figure(self.fh_d).add_subplot(111)
-        self.fh_v = 22
+        self.fh_v = 2
         self.ax_v = plt.figure(self.fh_v).add_subplot(111)
         self.fh_t = 3
         self.ax_t = plt.figure(self.fh_t).add_subplot(111)
@@ -137,12 +141,13 @@ class RSTPTest(AbstractTest):
         plt.savefig(fpath)
         plt.close(self.fh_p)
             
-    def neverStop(self):
+    def noStop(self):
         return False
     
     def solve(self,stopFunc=None,collect_cnt=10):    
         if stopFunc is None:
-            stopFunc = self.neverStop
+            stopFunc = self.noStop
+            
         #Define grid
         delta_x = (self.params.xmax - self.params.xmin)/self.params.ncells
         numj = self.params.ncells + 1
@@ -153,8 +158,8 @@ class RSTPTest(AbstractTest):
         Vxn = self.initval.get_init_Vx(numj)
         Mxn = self.initval.get_init_Mx(numj)
         Dn = self.initval.get_init_D(self.params.ncells)
-        Rhon = self.initval.get_init_Rho(numj)
-        Pn = self.initval.get_init_P(numj)
+        Rhon = self.initval.get_init_Rho(self.params.ncells)
+        Pn = self.initval.get_init_P(self.params.ncells)
         Edn = self.initval.get_init_Ed(numj)
 
         #Stop condition - when shock wave is 90% close to end boundary
@@ -164,17 +169,20 @@ class RSTPTest(AbstractTest):
         #Figure and stat collection
         stats_counter = np.linspace(0,nsteps,collect_cnt,True,dtype=int)
         print("Stats collect at location" + str(stats_counter))
-        col_index = 1 #Dont plot Initial condition
+        col_index = 1 #Dont plot Initial condition (t=0)
         self.init_figures()
                         
         #Define source terms for the non-conservative equations
         #The equations are numbered as D = 1, M = 2, Ed = 3
-        self.odesolver.set_src(self.M_eqid,self.calculate_momentum_source)
+        self.odesolver.set_src(self.D_eqid,self.src.calculate_density_source)
+        self.odesolver.set_src(self.M_eqid,self.src.calculate_momentum_source)
         
         #Setup outer loop for time
         # Use Explicit solver to solve the 3 equations without loop
         # Do all the stuff
         for n in range(0,nsteps):
+            if n%100 == 0:
+                print('Simulation ongoing at n = ' + str(n))
             Dn_1 = self.solve_density_eqn(Dn,Vxn,delta_t,delta_x)
             Mxn_1 = self.solve_momentum_eqn(Mxn,Vxn,Pn,delta_t,delta_x)
             Edn_1 = Edn
@@ -222,18 +230,17 @@ class RSTPTest(AbstractTest):
     
     #Conservative equation solved in cell centered manner with Transvere boundary conditions
     def solve_density_eqn(self,Dn,Vx,delta_t,delta_x):
-        D = self.odesolver.solve_conservative_without_outerloop(delta_t,delta_x,Dn,Vx,cc=True)
+        self.src.D = Dn
+        self.src.V = Vx
+        D = self.odesolver.solve_conservative_without_outerloop(delta_t,delta_x,Dn,Vx,self.D_eqid,cc=True)
         return D
     
     def solve_momentum_eqn(self,Mxn,Vx,P,delta_t,delta_x):
-        self.temp_P = P #This is required to evaluate source term
-        M = self.odesolver.solve_non_conservative_without_outerloop(self.M_eqid,delta_t,delta_x,Mxn,Vx,cc=False)
+        self.src.P = P 
+        self.src.V = Vx
+        self.src.M = Mxn
+        M = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Mxn,Vx,self.M_eqid,cc=False)
         return M
-    
-    def calculate_momentum_source(self,delta_t,delta_x,j):
-        mu = delta_t/delta_x
-        S =  - mu*(self.temp_P[j] - self.temp_P[j-1])
-        return S
     
     def calculate_Dh(self,gamma,D,Ed):
         if gamma == 0:
