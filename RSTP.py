@@ -22,7 +22,7 @@ class RSTPImplicitParams(Params):
         self.ncells = ncells
         self.alpha = alpha
         self.fv_boundary_strategy = None        
-        self.cfl = 0.40 #This parameter is not user defined
+        self.cfl = 0.30 #This parameter is not user defined
         
 class RSTPIV(InitialValues):
     def __init__(self,Vx,Mx,D,Rho):

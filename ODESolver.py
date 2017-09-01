@@ -129,27 +129,43 @@ class ODEImplicit(FVODESOlver):
         if cc == True: #Cell centered FV
             for j in range(1,numj-1): 
                 if V[j] > 0:
-                    #A[0,j-1] = 0 #c
-                    #A[1,j-1] = (delta_x+self.alpha*V[j+1]*delta_t)/mu  #b
-                    #A[2,j-1] = (-self.alpha*V[j])/delta_x #a
+                    if j < numj-2:
+                        A[0,j] = 0 #c
+                    A[1,j-1] = (delta_x+self.alpha*V[j+1]*delta_t)/mu  #b
+                    if j > 1:
+                        A[2,j-2] = (-self.alpha*V[j])/delta_x #a
                     
                     if j > 1:
                         A_test[j-1,j-2] = (-self.alpha*V[j])/delta_x #a
-                    A_test[j-1,j-1] = (delta_x+self.alpha*V[j+1]*delta_t)/mu #b
+                        A_test[j-1,j-1] = (delta_x+self.alpha*V[j+1]*delta_t)/mu #b
+                    else:
+                        A_test[j-1,j-1] = (-self.alpha*V[j])/delta_x + \
+                                            (delta_x+self.alpha*V[j+1]*delta_t)/mu #a+b
+                        
                     if (j+1) < (numj-2):
                         A_test[j-1,j+1] = 0  #c
+                    else:
+                        A_test[j-1,j-1] = A_test[j-1,j-1] + 0 #b+c
                     
                         
                 else:
-                    #A[0,j-1] = (self.alpha*V[j+1])/delta_x #c
-                    #A[1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu  #b
-                    #A[2,j-1] = 0 #a
+                    if j < numj-2:
+                        A[0,j] = (self.alpha*V[j+1])/delta_x #c
+                    A[1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu  #b
+                    if j > 1:
+                        A[2,j-2] = 0 #a
                     
                     if j > 1:
                         A_test[j-1,j-2] = 0 #a
-                    A_test[j-1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu #b
+                        A_test[j-1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu #b
+                    else:
+                        A_test[j-1,j-1] = 0 + (delta_x-self.alpha*V[j]*delta_t)/mu #a+b
+                    
                     if (j+1) < (numj-2):
-                        A_test[j-1,j+1] = (self.alpha*V[j+1])/delta_x  #c
+                        A_test[j-1,j] = (self.alpha*V[j+1])/delta_x  #c
+                    else:
+                        A_test[j-1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu + \
+                                            (self.alpha*V[j+1])/delta_x #b+c
                         
                 y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)             
         else: #Vertex centered FV
@@ -157,34 +173,49 @@ class ODEImplicit(FVODESOlver):
                 Vi_avg = (V[j]+V[j-1])/2
                 Vj_avg = (V[j]+V[j+1])/2        
                 if Vj_avg > 0:
-                    #A[0,j-1] = 0 #c
-                    #A[1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu  #b
-                    #A[2,j-1] = (-self.alpha*Vi_avg)/delta_x #a
+                    if j < numj-2:
+                        A[0,j] = 0 #c
+                    A[1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu  #b
+                    if j > 1:
+                        A[2,j-2] = (-self.alpha*Vi_avg)/delta_x #a
                     
                     if j > 1:
                         A_test[j-1,j-2] = (-self.alpha*Vi_avg)/delta_x #a
-                    A_test[j-1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu #b
+                        A_test[j-1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu #b
+                    else:
+                        A_test[j-1,j-1] = (-self.alpha*Vi_avg)/delta_x + \
+                                            (delta_x+self.alpha*Vj_avg*delta_t)/mu #a+b
                     if (j+1) < (numj-2):
-                        A_test[j-1,j+1] = 0  #c
+                        A_test[j-1,j] = 0  #c
+                    else:
+                        A_test[j-1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu + 0 #b+c
                 else:
-                    #A[0,j-1] = (self.alpha*Vj_avg)/delta_x #c
-                    #A[1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu  #b
-                    #A[2,j-1] = 0 #a
+                    if j < numj-2:
+                        A[0,j] = (self.alpha*Vj_avg)/delta_x #c
+                    A[1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu  #b
+                    if j > 1:
+                        A[2,j-2] = 0 #a
                     
                     if j > 1:
                         A_test[j-1,j-2] = 0 #a
-                    A_test[j-1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu #b
+                        A_test[j-1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu #b
+                    else:
+                        A_test[j-1,j-1] = 0 + (delta_x-self.alpha*Vi_avg*delta_t)/mu #a+b
+                        
                     if (j+1) < (numj-2):
                         A_test[j-1,j+1] = (self.alpha*Vj_avg)/delta_x  #c
+                    else:
+                        A_test[j-1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu + \
+                                            (self.alpha*Vj_avg)/delta_x #b+c
                         
                 y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)
                         
         #Apply boundary - TBD refactor
         if V[0] > 0:
-            a0 = (-self.alpha*V[0])/delta_x
+            a1 = (-self.alpha*V[0])/delta_x
         else:
-            a0 = 0
-        A[1,0] = A[1,0] + a0
+            a1 = 0
+        A[1,0] = A[1,0] + a1
         
         if V[numj-2] > 0:
             cend = 0
@@ -193,9 +224,9 @@ class ODEImplicit(FVODESOlver):
         A[1,-1] = A[1,-1] + cend
         
         #Solve tridiagonal system of equations        
-        #Q_new[1:numj-1] = la.solve_banded ((1,1),A,y)
+        Q_new[1:numj-1] = la.solve_banded ((1,1),A,y)
         
-        Q_new[1:numj-1] = np.linalg.solve(A_test, y) 
+        #Q_new[1:numj-1] = np.linalg.solve(A_test, y) 
         
         Q_new = self.apply_boundary(Q_new)           
         
