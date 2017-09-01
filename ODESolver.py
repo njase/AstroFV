@@ -1,5 +1,5 @@
-#import abc
 import numpy as np
+import scipy.linalg as la
 
 class FVBoundary:
     def __init__(self):
@@ -13,6 +13,28 @@ class FVTransverse(FVBoundary):
         Q[0] = Q[1]
         Q[-1] = Q[-2]
         return Q
+       
+    
+    def preapply(self,A,y):
+        """
+        Convert to tridiagonal form with TV boundary applied as:
+        A = 
+        | c1  c2  c3  c4 |       | 0       c1  c2    c3    |
+        | b1  b2  b3  b4 |  -->  |(a1+b1)  b2  b3  (b4+c4) |
+        | a1  a2  a3  a4 |       |a2       a3  a4    0     |
+        
+        y remains unchanged in TV boundary
+        """
+        A[1,0] = A[1,0] + A[2,0]
+        A[1,-1] = A[1,-1] + A[0,-1]
+        
+        A[0,1:] = A[0,0:-1]
+        A[0,0] = 0 #not needed
+        
+        A[2,0:-1] = A[2,1:]
+        A[2,-1] = 0 #not needed
+        
+        return [A,y]
 
 #FV ODE Solver techniques
 class FVODESOlver:
@@ -27,28 +49,35 @@ class FVODESOlver:
     def apply_boundary(self,Q):
         return self.brytype.apply(Q)
     
+    def preapply_boundary(self,A,y):
+        return self.brytype.preapply(A,y)
+    
     def apply_src(self,eqid,delta_t,delta_x,j):
         S = self.src_functor[eqid](delta_t,delta_x,j)
         return S
     
-    def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,cc):
+    def solve_conservative_without_outerloop(self,eqid,delta_t,delta_x,Q,V,cc):
         print("Base class function solve_conservative_without_outerloop should not have been called")
+        raise NotImplementedError()
     
-    def solve_non_conservative_without_outerloop(self,delta_t,delta_x,Q,V,src_functor,cc):
+    def solve_non_conservative_without_outerloop(self,eqid,delta_t,delta_x,Q,V,cc):
         print("Base class function solve_non_conservative_without_outerloop should not have been called")
-        
-    def solve_conservative_with_outerloop(self,delta_t,delta_x,Q,V,cc):
+        raise NotImplementedError()
+    
+    def solve_conservative_with_outerloop(self,delta_t,delta_x,Q,V):
+        print("Not implemented: solve_conservative_with_outerloop")
         raise NotImplementedError() 
     
-    def solve_non_conservative_with_outerloop(self,delta_t,delta_x,Q,V,cc):
+    def solve_non_conservative_with_outerloop(self,delta_t,delta_x,Q,V):
+        print("Not implemented: solve_non_conservative_with_outerloop")
         raise NotImplementedError()
 
 #This is explicit Euler, with upwinding
 class ODEExplicit(FVODESOlver):
-    def __init__(self,bry_strategy=FVTransverse):
-        FVODESOlver.__init__(self,bry_strategy)
+    def __init__(self,params):
+        FVODESOlver.__init__(self,params.fv_boundary_strategy)
     
-    def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,cc=False):
+    def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid=0,cc=False):
         numj  = len(Q)
         Q_new = np.zeros_like(Q)
         mu = delta_t/delta_x
@@ -71,7 +100,7 @@ class ODEExplicit(FVODESOlver):
         Q_new = self.apply_boundary(Q_new)
         return Q_new
     
-    def solve_non_conservative_without_outerloop(self,eqid,delta_t,delta_x,Q,V,cc=False):
+    def solve_non_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
         numj  = len(Q)
         Q_new = np.zeros_like(Q)
         mu = delta_t/delta_x
@@ -97,5 +126,67 @@ class ODEExplicit(FVODESOlver):
 
 #This is implicit Euler with upwinding
 class ODEImplicit(FVODESOlver):
-    def __init__(self,bry_strategy=FVTransverse):
-        FVODESOlver.__init__(self,bry_strategy)
+    def __init__(self,params):
+        FVODESOlver.__init__(self,params.fv_boundary_strategy)
+        self.alpha = params.alpha
+    
+    def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
+        numj  = len(Q)
+        Q_new = np.zeros_like(Q)
+        mu = delta_t*delta_x
+        
+        #Solve tridiagonal matrix equation Ax=y
+        
+        #The three diagonals are stored in matrix A starting from upper diag        
+        A = np.zeros((3,numj-2))
+        y = np.zeros(numj-2)
+        
+               
+        #Unavoidable loop to create matrix A and vector y
+        if cc == True: #Cell centered FV
+            for j in range(1,numj-1): 
+                if V[j] > 0:
+                    c = 0
+                    b = (delta_x+self.alpha*V[j+1]*delta_t)/mu
+                    a = (-self.alpha*V[j])/delta_x
+                else:
+                    c = (self.alpha*V[j+1])/delta_x
+                    b = (delta_x-self.alpha*V[j]*delta_t)/mu
+                    a = 0
+                
+                A[0,j-1] = c
+                A[1,j-1] = b
+                A[2,j-1] = a
+                y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)             
+        else: #Vertex centered FV
+            for j in range(1,numj-1):
+                Vi_avg = (V[j]+V[j-1])/2
+                Vj_avg = (V[j]+V[j+1])/2        
+                if Vj_avg > 0:
+                    c = 0
+                    b = (delta_x+self.alpha*Vj_avg*delta_t)/mu
+                    a = (-self.alpha*Vi_avg)/delta_x
+                    
+                else:
+                    c = (self.alpha*Vj_avg)/delta_x
+                    b = (delta_x-self.alpha*Vi_avg*delta_t)/mu
+                    a = 0
+                
+                A[0,j-1] = c
+                A[1,j-1] = b
+                A[2,j-1] = a                    
+                y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)
+                     
+        [A,y] = self.preapply_boundary(A,y)
+        
+        #Solve tridiagonal system of equations        
+        Q_new[1:numj-1] = la.solve_banded ((1,1),A,y)
+        
+        Q_new = self.apply_boundary(Q_new)           
+        
+        return Q_new
+    
+    def solve_non_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
+        return self.solve_conservative_without_outerloop(delta_t,delta_x,Q,V,eqid,cc)
+        
+    

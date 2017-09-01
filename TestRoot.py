@@ -15,6 +15,7 @@ class Params:
         self.xmax = 1
         self.tmin = 0
         self.tmax = 1
+        self.fpath = '.'
 
     def set_spatial_limits(self,xmin,xmax):
         self.xmin = xmin
@@ -23,5 +24,9 @@ class Params:
     def set_temporal_limits(self,tmin,tmax):
         self.tmin = tmin
         self.tmax = tmax
-  
+
+    #Absolute path
+    def set_fig_path(self,fpath):
+        self.fpath = fpath
+
     

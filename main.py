@@ -4,27 +4,27 @@ import sys,os
 
 
 def main():
-    #Read input from external source like DB
- 
     #Params for explicit solver    
-    params = RSTPExplicitParams() 
-    params.gamma = 0
-    #params.cfl = 0.25
-    params.cfl = 1.0
-    params.fv_boundary_strategy = FVTransverse #Default, may also be skipped 
-    iv = RSTPIV(Vx=[0,0],Mx=[0,0],D=[1,10**-2],Rho=[1,10**-2])
-    bv = RSTPBV()
-    testlist = [RSTPTest(1,params,iv,bv,ode_strategy=ODEExplicit)]    
-    [test.solve(3) for test in testlist]
-
+    eparams = RSTPExplicitParams(400,0,0.25) 
+    eparams.set_fig_path('./figs/')
+    eparams.fv_boundary_strategy = FVTransverse #Default, may also be skipped 
+    eiv = RSTPIV(Vx=[0,0],Mx=[0,0],D=[1,10**-2],Rho=[1,10**-2])
+    ebv = RSTPBV()
+    test_id = 2
+    test_explicit = RSTPTest(test_id,eparams,eiv,ebv,ode_strategy=ODEExplicit)
+    
     #Params for implicit solver
-#     params = RSTPImplicitParams()
-#     params.gamma = 0
-#     params.fv_boundary_strategy = FVTransverse #Default, may also be skipped
-#     iv = RSTPIV(Vx=[0,0],Mx=[0,0],D=[1,10**-2],Rho=[1,10**-2])
-#     bv = RSTPBV()
-#     testlist = [RSTPTest(params,iv,bv,ode_strategy=ODEImplicit)]
-#     [test.solve() for test in testlist]
+    iparams = RSTPImplicitParams(200,0.5,0.0)
+    iparams.set_fig_path('./figs/')
+    iparams.fv_boundary_strategy = FVTransverse #Default, may also be skipped 
+    iiv = RSTPIV(Vx=[0,0],Mx=[0,0],D=[1,10**-2],Rho=[1,10**-2])
+    ibv = RSTPBV()
+    test_id = 1
+    test_implicit = RSTPTest(test_id,iparams,iiv,ibv,ode_strategy=ODEImplicit)
+    
+    #testlist = [test_explicit,test_implicit]
+    testlist = [test_implicit]
+    [test.solve(collect_cnt=5) for test in testlist]
     
 
 if __name__ == "__main__":
