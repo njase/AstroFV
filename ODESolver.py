@@ -6,26 +6,41 @@ class FVBoundary:
         pass
 
 class FVTransverse(FVBoundary):
-    def __init__(self,solver):
+    def __init__(self):
         FVBoundary.__init__(self)
-        self.solver = solver
     
     def apply(self,Q):
-        if self.solver == 'explicit':
-            Q[0] = Q[1]
-            Q[-1] = Q[-2]            
-        elif self.solver == 'implicit':
-            Q[0] = Q[1]
-            Q[-1] = Q[-2]
-        else:
-            print('error in applying boundary - no solver given')
+        Q[0] = Q[1]
+        Q[-1] = Q[-2]
         return Q
+       
+    
+    def preapply(self,A,y):
+        """
+        Convert to tridiagonal form with TV boundary applied as:
+        A = 
+        | c1  c2  c3  c4 |       | 0       c1  c2    c3    |
+        | b1  b2  b3  b4 |  -->  |(a1+b1)  b2  b3  (b4+c4) |
+        | a1  a2  a3  a4 |       |a2       a3  a4    0     |
+        
+        y remains unchanged in TV boundary
+        """
+        A[1,0] = A[1,0] + A[2,0]
+        A[1,-1] = A[1,-1] + A[0,-1]
+        
+        A[0,1:] = A[0,0:-1]
+        A[0,0] = 0 #not needed
+        
+        A[2,0:-1] = A[2,1:]
+        A[2,-1] = 0 #not needed
+        
+        return [A,y]
 
 #FV ODE Solver techniques
 class FVODESOlver:
     #__metaclass__ = abc.ABCMeta
-    def __init__(self,bry_strategy,solver):
-        self.brytype = bry_strategy(solver)
+    def __init__(self,bry_strategy):
+        self.brytype = bry_strategy()
         self.src_functor = {}
     
     def set_src(self,eqid,src_functor):
@@ -33,6 +48,9 @@ class FVODESOlver:
         
     def apply_boundary(self,Q):
         return self.brytype.apply(Q)
+    
+    def preapply_boundary(self,A,y):
+        return self.brytype.preapply(A,y)
     
     def apply_src(self,eqid,delta_t,delta_x,j):
         S = self.src_functor[eqid](delta_t,delta_x,j)
@@ -57,7 +75,7 @@ class FVODESOlver:
 #This is explicit Euler, with upwinding
 class ODEExplicit(FVODESOlver):
     def __init__(self,params):
-        FVODESOlver.__init__(self,params.fv_boundary_strategy,'explicit')
+        FVODESOlver.__init__(self,params.fv_boundary_strategy)
     
     def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid=0,cc=False):
         numj  = len(Q)
@@ -109,7 +127,7 @@ class ODEExplicit(FVODESOlver):
 #This is implicit Euler with upwinding
 class ODEImplicit(FVODESOlver):
     def __init__(self,params):
-        FVODESOlver.__init__(self,params.fv_boundary_strategy,'implicit')
+        FVODESOlver.__init__(self,params.fv_boundary_strategy)
         self.alpha = params.alpha
     
     def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
@@ -123,110 +141,46 @@ class ODEImplicit(FVODESOlver):
         A = np.zeros((3,numj-2))
         y = np.zeros(numj-2)
         
-        A_test = np.zeros((numj-2,numj-2))
-        
+               
         #Unavoidable loop to create matrix A and vector y
         if cc == True: #Cell centered FV
             for j in range(1,numj-1): 
                 if V[j] > 0:
-                    if j < numj-2:
-                        A[0,j] = 0 #c
-                    A[1,j-1] = (delta_x+self.alpha*V[j+1]*delta_t)/mu  #b
-                    if j > 1:
-                        A[2,j-2] = (-self.alpha*V[j])/delta_x #a
-                    
-                    if j > 1:
-                        A_test[j-1,j-2] = (-self.alpha*V[j])/delta_x #a
-                        A_test[j-1,j-1] = (delta_x+self.alpha*V[j+1]*delta_t)/mu #b
-                    else:
-                        A_test[j-1,j-1] = (-self.alpha*V[j])/delta_x + \
-                                            (delta_x+self.alpha*V[j+1]*delta_t)/mu #a+b
-                        
-                    if (j+1) < (numj-2):
-                        A_test[j-1,j+1] = 0  #c
-                    else:
-                        A_test[j-1,j-1] = A_test[j-1,j-1] + 0 #b+c
-                    
-                        
+                    c = 0
+                    b = (delta_x+self.alpha*V[j+1]*delta_t)/mu
+                    a = (-self.alpha*V[j])/delta_x
                 else:
-                    if j < numj-2:
-                        A[0,j] = (self.alpha*V[j+1])/delta_x #c
-                    A[1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu  #b
-                    if j > 1:
-                        A[2,j-2] = 0 #a
-                    
-                    if j > 1:
-                        A_test[j-1,j-2] = 0 #a
-                        A_test[j-1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu #b
-                    else:
-                        A_test[j-1,j-1] = 0 + (delta_x-self.alpha*V[j]*delta_t)/mu #a+b
-                    
-                    if (j+1) < (numj-2):
-                        A_test[j-1,j] = (self.alpha*V[j+1])/delta_x  #c
-                    else:
-                        A_test[j-1,j-1] = (delta_x-self.alpha*V[j]*delta_t)/mu + \
-                                            (self.alpha*V[j+1])/delta_x #b+c
-                        
+                    c = (self.alpha*V[j+1])/delta_x
+                    b = (delta_x-self.alpha*V[j]*delta_t)/mu
+                    a = 0
+                
+                A[0,j-1] = c
+                A[1,j-1] = b
+                A[2,j-1] = a
                 y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)             
         else: #Vertex centered FV
             for j in range(1,numj-1):
                 Vi_avg = (V[j]+V[j-1])/2
                 Vj_avg = (V[j]+V[j+1])/2        
                 if Vj_avg > 0:
-                    if j < numj-2:
-                        A[0,j] = 0 #c
-                    A[1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu  #b
-                    if j > 1:
-                        A[2,j-2] = (-self.alpha*Vi_avg)/delta_x #a
+                    c = 0
+                    b = (delta_x+self.alpha*Vj_avg*delta_t)/mu
+                    a = (-self.alpha*Vi_avg)/delta_x
                     
-                    if j > 1:
-                        A_test[j-1,j-2] = (-self.alpha*Vi_avg)/delta_x #a
-                        A_test[j-1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu #b
-                    else:
-                        A_test[j-1,j-1] = (-self.alpha*Vi_avg)/delta_x + \
-                                            (delta_x+self.alpha*Vj_avg*delta_t)/mu #a+b
-                    if (j+1) < (numj-2):
-                        A_test[j-1,j] = 0  #c
-                    else:
-                        A_test[j-1,j-1] = (delta_x+self.alpha*Vj_avg*delta_t)/mu + 0 #b+c
                 else:
-                    if j < numj-2:
-                        A[0,j] = (self.alpha*Vj_avg)/delta_x #c
-                    A[1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu  #b
-                    if j > 1:
-                        A[2,j-2] = 0 #a
-                    
-                    if j > 1:
-                        A_test[j-1,j-2] = 0 #a
-                        A_test[j-1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu #b
-                    else:
-                        A_test[j-1,j-1] = 0 + (delta_x-self.alpha*Vi_avg*delta_t)/mu #a+b
-                        
-                    if (j+1) < (numj-2):
-                        A_test[j-1,j+1] = (self.alpha*Vj_avg)/delta_x  #c
-                    else:
-                        A_test[j-1,j-1] = (delta_x-self.alpha*Vi_avg*delta_t)/mu + \
-                                            (self.alpha*Vj_avg)/delta_x #b+c
-                        
+                    c = (self.alpha*Vj_avg)/delta_x
+                    b = (delta_x-self.alpha*Vi_avg*delta_t)/mu
+                    a = 0
+                
+                A[0,j-1] = c
+                A[1,j-1] = b
+                A[2,j-1] = a                    
                 y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)
-                        
-        #Apply boundary - TBD refactor
-        if V[0] > 0:
-            a1 = (-self.alpha*V[0])/delta_x
-        else:
-            a1 = 0
-        A[1,0] = A[1,0] + a1
-        
-        if V[numj-2] > 0:
-            cend = 0
-        else:
-            cend = (self.alpha*V[numj-1])/delta_x
-        A[1,-1] = A[1,-1] + cend
+                     
+        [A,y] = self.preapply_boundary(A,y)
         
         #Solve tridiagonal system of equations        
         Q_new[1:numj-1] = la.solve_banded ((1,1),A,y)
-        
-        #Q_new[1:numj-1] = np.linalg.solve(A_test, y) 
         
         Q_new = self.apply_boundary(Q_new)           
         

@@ -14,7 +14,7 @@ def main():
     test_explicit = RSTPTest(test_id,eparams,eiv,ebv,ode_strategy=ODEExplicit)
     
     #Params for implicit solver
-    iparams = RSTPImplicitParams(300,0.5,0.0)
+    iparams = RSTPImplicitParams(200,0.5,0.0)
     iparams.set_fig_path('./figs/')
     iparams.fv_boundary_strategy = FVTransverse #Default, may also be skipped 
     iiv = RSTPIV(Vx=[0,0],Mx=[0,0],D=[1,10**-2],Rho=[1,10**-2])
