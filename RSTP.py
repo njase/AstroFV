@@ -161,11 +161,9 @@ class RSTPTest(AbstractTest):
         Dn = self.initval.get_init_D(self.params.ncells)
         Rhon = self.initval.get_init_Rho(self.params.ncells)
         Pn = self.initval.get_init_P(self.params.ncells)
-        Edn = self.initval.get_init_Ed(numj)
-        #Edn = self.initval.get_init_Ed(self.params.ncells)
+        Edn = self.initval.get_init_Ed(self.params.ncells)
         if self.params.gamma != 0:
-            Edn[0:-1] = Pn/(self.params.gamma-1)
-            Edn[-1] = Edn[-2]  
+            Edn[0:] = Pn/(self.params.gamma-1)
             
         Utn = np.zeros(numj)
         #For Extrapolation using last 5 values
@@ -183,17 +181,21 @@ class RSTPTest(AbstractTest):
         self.init_figures()
                         
         #Setup outer loop for time
-        # Use Explicit solver to solve the 3 equations without loop
-        # Do all the stuff
+        # Use solver to solve the 3 equations without loop
         for n in range(0,nsteps):
             if n%100 == 0:
                 print('\n' + 'Simulation ongoing at n = ' + str(n))
+            
+            #Solve first equation
             Dn_1 = self.solve_density_eqn(Dn,Vxn,delta_t,delta_x)
+            
+            #Solve second equation
             Mxn_1 = self.solve_momentum_eqn(Mxn,Vxn,Pn,delta_t,delta_x)
+            
+            #Solve third equation
             if self.params.gamma != 0: #isothermal case
                 # Predict Ut(n+1)
                 Ut_fut = self.predict_Ut(Ut_old,pdegree)
-                #Solve third equation
                 print '.', #progress bar
                 Edn_1 = self.solve_energy_eqn(Edn,Vxn,Utn,Ut_fut,delta_t,delta_x)
             else:
@@ -225,7 +227,6 @@ class RSTPTest(AbstractTest):
             Ut_old[0:-1,:] = Ut_old[1:,:]
             Ut_old[-1,:] = Utn_1
             
-
             # If shock wave is close to the boundary, stop!
             if abs(Utn[xbreak]-min(Utn)) > 0.1:
                 break_sim = True
@@ -274,8 +275,8 @@ class RSTPTest(AbstractTest):
         self.src.U = Ut
         self.src.U_new = Ut_fut
         
-        if self.odesolver.get_name() == "implicit":        
-            E = self.odesolver.solve_user_defined_without_outerloop(self.params.ncells+1,delta_t,delta_x,self.E_eqid,cc=True)
+        if self.odesolver.get_name() == "implicit":
+            E = self.odesolver.solve_user_defined_without_outerloop(self.params.ncells,delta_t,delta_x,self.E_eqid,cc=True)
         else:
             E = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Edn,Vx,self.E_eqid,cc=True)
         return E
@@ -322,6 +323,6 @@ class RSTPTest(AbstractTest):
         if gamma == 0: #isothermal case
             P = rho
         else:        
-            P = (gamma-1)*np.divide(Ed,Ut)
+            P = (gamma-1)*np.divide(Ed,Ut[:-1])
             P[P==np.inf] = 0 #Take care of inf = division by zero
         return P
