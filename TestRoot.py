@@ -8,14 +8,27 @@ class AbstractTest:
         print("This abstract function should not have been called")
         raise NotImplementedError()
 
+class AbstractSrc:
+    __metaclass__ = abc.ABCMeta
+    
+    @abc.abstractmethod
+    def calculate_source(self,eqid,delta_t,delta_x,j):
+        print("This abstract function should not have been called")
+        raise NotImplementedError()
+    
+    @abc.abstractmethod
+    def calculate_abc(self,eqid,delta_t,delta_x,j):
+        print("This abstract function should not have been called")
+        raise NotImplementedError()
 
 class Params:
-    def __init__(self):
+    def __init__(self,id):
         self.xmin = 0
         self.xmax = 1
         self.tmin = 0
         self.tmax = 1
         self.fpath = '.'
+        self.name = id
 
     def set_spatial_limits(self,xmin,xmax):
         self.xmin = xmin
