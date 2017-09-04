@@ -8,16 +8,16 @@ import matplotlib.pyplot as plt
 
 class RSTPExplicitParams(Params):
     def __init__(self,ncells,gamma=0,cfl=1.0):
-        Params.__init__(self) 
+        Params.__init__(self,"explicit") 
         self.gamma = gamma
         self.cfl = cfl
         self.ncells = ncells
         self.fv_boundary_strategy = None
-        #self.alpha is not defined
+        #self.alpha is NA and not defined
 
 class RSTPImplicitParams(Params):
     def __init__(self,ncells,alpha,gamma=0):
-        Params.__init__(self) 
+        Params.__init__(self,"implicit") 
         self.gamma = gamma
         self.ncells = ncells
         self.alpha = alpha
@@ -73,12 +73,13 @@ class RSTPTest(AbstractTest):
         self.params = params
         if ode_strategy:
             self.odesolver = ode_strategy(params)
+            self.src = RSTPSrc.factory(ode_strategy)(self.params)
+            self.odesolver.set_src(self.src)
         self.initval = initval
         self.bryval = bryval
         self.D_eqid = 1
         self.M_eqid = 2
-        self.E_eqid = 3
-        self.src = RSTPSrc.factory(ode_strategy)(self.params)
+        self.E_eqid = 3        
 
     def init_figures(self):
         self.fh_d = 1
@@ -161,6 +162,15 @@ class RSTPTest(AbstractTest):
         Rhon = self.initval.get_init_Rho(self.params.ncells)
         Pn = self.initval.get_init_P(self.params.ncells)
         Edn = self.initval.get_init_Ed(numj)
+        #Edn = self.initval.get_init_Ed(self.params.ncells)
+        if self.params.gamma != 0:
+            Edn[0:-1] = Pn/(self.params.gamma-1)
+            Edn[-1] = Edn[-2]  
+            
+        Utn = np.zeros(numj)
+        #For Extrapolation using last 5 values
+        Ut_old = np.zeros((5,numj))
+        pdegree = 2
 
         #Stop condition - when shock wave is 90% close to end boundary
         xbreak = int(0.9*numj)-1
@@ -172,20 +182,22 @@ class RSTPTest(AbstractTest):
         col_index = 1 #Dont plot Initial condition (t=0)
         self.init_figures()
                         
-        #Define source terms for the non-conservative equations
-        #The equations are numbered as D = 1, M = 2, Ed = 3
-        self.odesolver.set_src(self.D_eqid,self.src.calculate_density_source)
-        self.odesolver.set_src(self.M_eqid,self.src.calculate_momentum_source)
-        
         #Setup outer loop for time
         # Use Explicit solver to solve the 3 equations without loop
         # Do all the stuff
         for n in range(0,nsteps):
             if n%100 == 0:
-                print('Simulation ongoing at n = ' + str(n))
+                print('\n' + 'Simulation ongoing at n = ' + str(n))
             Dn_1 = self.solve_density_eqn(Dn,Vxn,delta_t,delta_x)
             Mxn_1 = self.solve_momentum_eqn(Mxn,Vxn,Pn,delta_t,delta_x)
-            Edn_1 = Edn
+            if self.params.gamma != 0: #isothermal case
+                # Predict Ut(n+1)
+                Ut_fut = self.predict_Ut(Ut_old,pdegree)
+                #Solve third equation
+                print '.', #progress bar
+                Edn_1 = self.solve_energy_eqn(Edn,Vxn,Utn,Ut_fut,delta_t,delta_x)
+            else:
+                Edn_1 = Edn
             
             ### Update phase        
             Dh = self.calculate_Dh(self.params.gamma,Dn_1,Edn_1)
@@ -210,23 +222,26 @@ class RSTPTest(AbstractTest):
             Utn = Utn_1
             Pn = Pn_1
             Edn = Edn_1
+            Ut_old[0:-1,:] = Ut_old[1:,:]
+            Ut_old[-1,:] = Utn_1
+            
 
             # If shock wave is close to the boundary, stop!
             if abs(Utn[xbreak]-min(Utn)) > 0.1:
                 break_sim = True
 
             if (n == stats_counter[col_index] or break_sim) : 
-                print("collecting stats for n = " + str(n))          
+                print('\n' + 'collecting stats for n = ' + str(n))          
                 t=n*delta_t
                 self.plot_figures(t,Dn,Vxn,Utn,Pn)                
                 col_index = col_index + 1
 
             if break_sim or stopFunc():
-                print("Wave too close to boundary or simulation stopped")           
+                print('\n' + 'Wave too close to boundary or simulation stopped')           
                 break
 
         self.save_figures()        
-        print("Simulation stopped")
+        print('\n' + 'Simulation stopped')
     
     #Conservative equation solved in cell centered manner with Transvere boundary conditions
     def solve_density_eqn(self,Dn,Vx,delta_t,delta_x):
@@ -242,12 +257,35 @@ class RSTPTest(AbstractTest):
         M = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Mxn,Vx,self.M_eqid,cc=False)
         return M
     
+    def predict_Ut(self,Ut_old,pdeg):
+        [xsize,numj] = np.shape(Ut_old)    
+        Ut_new = np.zeros(numj)
+        x = np.arange(1,xsize+1)
+        for n in range(numj):        
+            p = np.polyfit(x, Ut_old[:,n],pdeg)
+            Ut_new[n] = np.polyval(p,xsize+1)
+        
+        return Ut_new
+    
+    
+    def solve_energy_eqn(self,Edn,Vx,Ut,Ut_fut,delta_t,delta_x):
+        self.src.E = Edn
+        self.src.V = Vx
+        self.src.U = Ut
+        self.src.U_new = Ut_fut
+        
+        if self.odesolver.get_name() == "implicit":        
+            E = self.odesolver.solve_user_defined_without_outerloop(self.params.ncells+1,delta_t,delta_x,self.E_eqid,cc=True)
+        else:
+            E = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Edn,Vx,self.E_eqid,cc=True)
+        return E
+
     def calculate_Dh(self,gamma,D,Ed):
         if gamma == 0:
             Dh = D
         else:
             ncells = len(D)
-            #Dh = D + gamma*Ed(1:ncells)
+            Dh = D + gamma*Ed[:ncells]
         return Dh
     
     def calculate_Mt(self,Dh,Mx):    
@@ -284,6 +322,6 @@ class RSTPTest(AbstractTest):
         if gamma == 0: #isothermal case
             P = rho
         else:        
-            P = (gamma-1)*np.divide(Ed/Ut)
+            P = (gamma-1)*np.divide(Ed,Ut)
             P[P==np.inf] = 0 #Take care of inf = division by zero
         return P

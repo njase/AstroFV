@@ -39,12 +39,16 @@ class FVTransverse(FVBoundary):
 #FV ODE Solver techniques
 class FVODESOlver:
     #__metaclass__ = abc.ABCMeta
-    def __init__(self,bry_strategy):
+    def __init__(self,name,bry_strategy):
         self.brytype = bry_strategy()
-        self.src_functor = {}
+        self.src_functor = None
+        self.name = name
     
-    def set_src(self,eqid,src_functor):
-        self.src_functor[eqid] = src_functor
+    def get_name(self):
+        return self.name
+    
+    def set_src(self,src_functor):
+        self.src_functor = src_functor
         
     def apply_boundary(self,Q):
         return self.brytype.apply(Q)
@@ -53,7 +57,11 @@ class FVODESOlver:
         return self.brytype.preapply(A,y)
     
     def apply_src(self,eqid,delta_t,delta_x,j):
-        S = self.src_functor[eqid](delta_t,delta_x,j)
+        S = self.src_functor.calculate_source(eqid,delta_t,delta_x,j)
+        return S
+    
+    def get_abc(self,eqid,delta_t,delta_x,j):
+        S = self.src_functor.calculate_abc(eqid,delta_t,delta_x,j)
         return S
     
     def solve_conservative_without_outerloop(self,eqid,delta_t,delta_x,Q,V,cc):
@@ -71,11 +79,15 @@ class FVODESOlver:
     def solve_non_conservative_with_outerloop(self,delta_t,delta_x,Q,V):
         print("Not implemented: solve_non_conservative_with_outerloop")
         raise NotImplementedError()
+    
+    def solve_user_defined_without_outerloop(self,numj,delta_t,delta_x):
+        print("Not implemented: solve_user_defined_without_outerloop")
+        raise NotImplementedError()
 
 #This is explicit Euler, with upwinding
 class ODEExplicit(FVODESOlver):
     def __init__(self,params):
-        FVODESOlver.__init__(self,params.fv_boundary_strategy)
+        FVODESOlver.__init__(self,params.name,params.fv_boundary_strategy)
     
     def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid=0,cc=False):
         numj  = len(Q)
@@ -112,7 +124,7 @@ class ODEExplicit(FVODESOlver):
                 else:
                     Q_new[j] = Q[j] - mu*(Q[j+1]*V[j+1] - Q[j]*V[j]) + self.apply_src(eqid,delta_t,delta_x,j)
         else: #Vertex centered FV
-            for j in range(1,numj-2):
+            for j in range(1,numj-1):
                 Vi_avg = (V[j]+V[j-1])/2
                 Vj_avg = (V[j]+V[j+1])/2        
                 if Vj_avg > 0:
@@ -127,7 +139,7 @@ class ODEExplicit(FVODESOlver):
 #This is implicit Euler with upwinding
 class ODEImplicit(FVODESOlver):
     def __init__(self,params):
-        FVODESOlver.__init__(self,params.fv_boundary_strategy)
+        FVODESOlver.__init__(self,params.name,params.fv_boundary_strategy)
         self.alpha = params.alpha
     
     def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
@@ -189,4 +201,33 @@ class ODEImplicit(FVODESOlver):
     def solve_non_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
         return self.solve_conservative_without_outerloop(delta_t,delta_x,Q,V,eqid,cc)
         
-    
+        
+    def solve_user_defined_without_outerloop(self,numj,delta_t,delta_x,eqid,cc=False):
+        Q_new = np.zeros(numj)
+        
+        #Solve tridiagonal matrix equation Ax=y
+        
+        #The three diagonals are stored in matrix A starting from upper diag        
+        A = np.zeros((3,numj-2))
+        y = np.zeros(numj-2)        
+               
+        #Unavoidable loop to create matrix A and vector y
+        if cc == True: #Cell centered FV
+            for j in range(1,numj-1): 
+                [a,b,c] = self.get_abc(eqid,delta_t,delta_x,j)                
+                A[0,j-1] = c
+                A[1,j-1] = b
+                A[2,j-1] = a
+                y[j-1] = self.apply_src(eqid, delta_t, delta_x, j)             
+        else: #Vertex centered FV
+            print("Unexpected argument: Not implemented")
+            return None
+                     
+        [A,y] = self.preapply_boundary(A,y)
+        
+        #Solve tridiagonal system of equations        
+        Q_new[1:numj-1] = la.solve_banded ((1,1),A,y)
+        
+        Q_new = self.apply_boundary(Q_new)           
+        
+        return Q_new
