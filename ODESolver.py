@@ -88,6 +88,7 @@ class FVODESOlver:
 class ODEExplicit(FVODESOlver):
     def __init__(self,params):
         FVODESOlver.__init__(self,params.name,params.fv_boundary_strategy)
+        print('Created solver for ODEExplicit technique')
     
     def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid=0,cc=False):
         numj  = len(Q)
@@ -141,6 +142,7 @@ class ODEImplicit(FVODESOlver):
     def __init__(self,params):
         FVODESOlver.__init__(self,params.name,params.fv_boundary_strategy)
         self.alpha = params.alpha
+        print('Created solver for ODEImplicit technique with alpha = ' + str(self.alpha))
     
     def solve_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
         numj  = len(Q)

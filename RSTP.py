@@ -154,6 +154,7 @@ class RSTPTest(AbstractTest):
         numj = self.params.ncells + 1
         delta_t = self.params.cfl*delta_x
         nsteps = int((self.params.tmax-self.params.tmin)//delta_t) #Time steps
+        print('Total number of time steps = '+str(nsteps))
         
         #Set initial and boundary values
         Vxn = self.initval.get_init_Vx(numj)
@@ -176,7 +177,7 @@ class RSTPTest(AbstractTest):
         
         #Figure and stat collection
         stats_counter = np.linspace(0,nsteps,collect_cnt,True,dtype=int)
-        print("Stats collect at location" + str(stats_counter))
+        print("Stats will be collected at " + str(stats_counter))
         col_index = 1 #Dont plot Initial condition (t=0)
         self.init_figures()
                         
