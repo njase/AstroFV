@@ -147,14 +147,6 @@ class RSTPTest(AbstractTest):
         return False
     
     def solve(self,stopFunc=None,collect_cnt=10):    
-        ###For debugging
-        rstp_debug = False
-        
-        if rstp_debug == True:
-            f = open("op_"+str(self.test_id)+".log",'w')
-        else:
-            f = None
-        
         if stopFunc is None:
             stopFunc = self.noStop
             
@@ -198,17 +190,9 @@ class RSTPTest(AbstractTest):
         for n in range(0,nsteps):
             if n%100 == 0:
                 print('\n' + 'Simulation ongoing at n = ' + str(n))
-                
-            if f:
-                f.write('Simulation ongoing at n = ' + str(n) + '\n')
-                f.write('Before iteration' + '\n')
-                f.write('D = ' + str(Dn) + '\n')
-                f.write('V = ' + str(Vxn) + '\n')
-                f.write('M = ' + str(Mxn) + '\n')
-                f.write('E = ' + str(Edn) + '\n')
             
             for sub_iter in range(0,self.params.iter_count):
-                #print 'Sub iteration = ' + str(sub_iter), #progress bar                
+                print '.', #progress bar                
                 
                 #Solve first equation
                 self.src.D = Dn
@@ -269,14 +253,6 @@ class RSTPTest(AbstractTest):
             Ut_old[0:-1,:] = Ut_old[1:,:]
             Ut_old[-1,:] = Utn_1
             
-            
-            if f:
-                f.write('After iteration' + '\n')
-                f.write('D = ' + str(Dn) + '\n')
-                f.write('V = ' + str(Vxn) + '\n')
-                f.write('M = ' + str(Mxn) + '\n')
-                f.write('E = ' + str(Edn) + '\n')
-            
             # If shock wave is close to the boundary, stop!
             if abs(Utn[xbreak]-min(Utn)) > 0.1:
                 break_sim = True
@@ -293,8 +269,6 @@ class RSTPTest(AbstractTest):
 
         self.save_figures()        
         print('\n' + 'Simulation stopped')
-        if f:
-            f.close()
     
     #Conservative equation solved in cell centered manner with Transvere boundary conditions
     def solve_density_eqn(self,Dn,Vx,delta_t,delta_x):        
@@ -302,7 +276,7 @@ class RSTPTest(AbstractTest):
         return D
     
     def solve_momentum_eqn(self,Mxn,Vx,P,delta_t,delta_x):
-        M = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Mxn,Vx,self.M_eqid,cc=False)
+        M = self.odesolver.solve_conservative_source_without_outerloop(delta_t,delta_x,Mxn,Vx,self.M_eqid,cc=False)
         return M
     
     def predict_Ut(self,Ut_old,pdeg):
@@ -320,7 +294,7 @@ class RSTPTest(AbstractTest):
         if self.odesolver.get_name() == "implicit":
             E = self.odesolver.solve_user_defined_without_outerloop(self.params.ncells,delta_t,delta_x,self.E_eqid,cc=True)
         else:
-            E = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Edn,Vx,self.E_eqid,cc=True)
+            E = self.odesolver.solve_conservative_source_without_outerloop(delta_t,delta_x,Edn,Vx,self.E_eqid,cc=True)
         return E
 
     def calculate_Dh(self,gamma,D,Ed):

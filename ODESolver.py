@@ -68,16 +68,16 @@ class FVODESOlver:
         print("Base class function solve_conservative_without_outerloop should not have been called")
         raise NotImplementedError()
     
-    def solve_non_conservative_without_outerloop(self,eqid,delta_t,delta_x,Q,V,cc):
-        print("Base class function solve_non_conservative_without_outerloop should not have been called")
+    def solve_conservative_source_without_outerloop(self,eqid,delta_t,delta_x,Q,V,cc):
+        print("Base class function solve_conservative_source_without_outerloop should not have been called")
         raise NotImplementedError()
     
     def solve_conservative_with_outerloop(self,delta_t,delta_x,Q,V):
         print("Not implemented: solve_conservative_with_outerloop")
         raise NotImplementedError() 
     
-    def solve_non_conservative_with_outerloop(self,delta_t,delta_x,Q,V):
-        print("Not implemented: solve_non_conservative_with_outerloop")
+    def solve_conservative_source_with_outerloop(self,delta_t,delta_x,Q,V):
+        print("Not implemented: solve_conservative_source_with_outerloop")
         raise NotImplementedError()
     
     def solve_user_defined_without_outerloop(self,numj,delta_t,delta_x):
@@ -113,7 +113,7 @@ class ODEExplicit(FVODESOlver):
         Q_new = self.apply_boundary(Q_new)
         return Q_new
     
-    def solve_non_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
+    def solve_conservative_source_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
         numj  = len(Q)
         Q_new = np.zeros_like(Q)
         mu = delta_t/delta_x
@@ -200,7 +200,7 @@ class ODEImplicit(FVODESOlver):
         
         return Q_new
     
-    def solve_non_conservative_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
+    def solve_conservative_source_without_outerloop(self,delta_t,delta_x,Q,V,eqid,cc=False):
         return self.solve_conservative_without_outerloop(delta_t,delta_x,Q,V,eqid,cc)
         
         

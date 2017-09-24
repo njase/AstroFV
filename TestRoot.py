@@ -1,4 +1,5 @@
 import abc
+import os
 
 class AbstractTest:
     __metaclass__ = abc.ABCMeta
@@ -42,5 +43,7 @@ class Params:
     #Absolute path
     def set_fig_path(self,fpath):
         self.fpath = fpath
+        if not os.path.exists(fpath):
+            os.makedirs(fpath)
 
     

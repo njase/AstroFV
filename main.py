@@ -1,7 +1,6 @@
 from __future__ import division
 from RSTP import RSTPTest, RSTPIV, RSTPBV, RSTPExplicitParams, RSTPImplicitParams
 from ODESolver import ODEExplicit, ODEImplicit , FVTransverse
-import sys,os
 
 
 def main():
