@@ -157,14 +157,13 @@ which when re-arranged gives a tridiagonal system of equations as follows:
   
 <a href="https://www.codecogs.com/eqnedit.php?latex=E_{j-1}^{n&plus;1}&space;(0)&space;&plus;&space;E_{j}^{n&plus;1}&space;\left(&space;\frac{1}{\Delta&space;t}&space;-&space;\frac{\alpha&space;V_{j}^{x,n&plus;1}}{\Delta&space;x}&space;-&space;\frac{\gamma&space;-&space;1}{u^{n&plus;1}}&space;\left(&space;\frac{\partial&space;u}{\partial&space;t}&space;&plus;&space;\frac{V_{j&plus;1}^{x,n&plus;1}-V_{j}^{x,n&plus;1}}{\Delta&space;x}&space;\right)&space;\right)&space;&plus;&space;E_{j&plus;1}^{n&plus;1}&space;\left(&space;\frac{\alpha&space;V_{j&plus;1}^{x,n&plus;1}}{\Delta&space;x}&space;\right)&space;=&space;\frac{E_{j}^{n}}{\Delta&space;t}&space;-&space;(1-\alpha)&space;\left(\frac{E_{j&plus;1}^{n}V_{j&plus;1}^{x,n}&space;-&space;E_{j}^{n}V_{j}^{x,n}}{\Delta&space;x}&space;\right)" target="_blank"><img src="https://latex.codecogs.com/gif.latex?E_{j-1}^{n&plus;1}&space;(0)&space;&plus;&space;E_{j}^{n&plus;1}&space;\left(&space;\frac{1}{\Delta&space;t}&space;-&space;\frac{\alpha&space;V_{j}^{x,n&plus;1}}{\Delta&space;x}&space;-&space;\frac{\gamma&space;-&space;1}{u^{n&plus;1}}&space;\left(&space;\frac{\partial&space;u}{\partial&space;t}&space;&plus;&space;\frac{V_{j&plus;1}^{x,n&plus;1}-V_{j}^{x,n&plus;1}}{\Delta&space;x}&space;\right)&space;\right)&space;&plus;&space;E_{j&plus;1}^{n&plus;1}&space;\left(&space;\frac{\alpha&space;V_{j&plus;1}^{x,n&plus;1}}{\Delta&space;x}&space;\right)&space;=&space;\frac{E_{j}^{n}}{\Delta&space;t}&space;-&space;(1-\alpha)&space;\left(\frac{E_{j&plus;1}^{n}V_{j&plus;1}^{x,n}&space;-&space;E_{j}^{n}V_{j}^{x,n}}{\Delta&space;x}&space;\right)" title="E_{j-1}^{n+1} (0) + E_{j}^{n+1} \left( \frac{1}{\Delta t} - \frac{\alpha V_{j}^{x,n+1}}{\Delta x} - \frac{\gamma - 1}{u^{n+1}} \left( \frac{\partial u}{\partial t} + \frac{V_{j+1}^{x,n+1}-V_{j}^{x,n+1}}{\Delta x} \right) \right) + E_{j+1}^{n+1} \left( \frac{\alpha V_{j+1}^{x,n+1}}{\Delta x} \right) = \frac{E_{j}^{n}}{\Delta t} - (1-\alpha) \left(\frac{E_{j+1}^{n}V_{j+1}^{x,n} - E_{j}^{n}V_{j}^{x,n}}{\Delta x} \right)" /></a>
 
-
-*   Remarks
-   * The dependence on values from (n+1)th iteration for Vx and P are handled by using an iterative procedure. This is explained in pseudo code below:
+*  Remarks
+   *  The dependence on values from (n+1)th iteration for Vx and P are handled by using an iterative procedure. This is explained in pseudo code below:
    ```
-   Expectation: We are in iteration n, given values of step n we want to calculate values for n+1
-   Input: Dn, Vn, Mn, Edn, Pn as the values from step n, iter_count as number of sub-iterations
-   Procedure:
-   	Set:
+     Expectation: We are in iteration n, given values of step n we want to calculate values for n+1
+     Input: Dn, Vn, Mn, Edn, Pn as the values from step n, iter_count as number of sub-iterations
+     Procedure:
+     	Set:
    		V* = Vn
    		P* = Pn
    	Loop: Execute the below sub-iteration for iter_count:
