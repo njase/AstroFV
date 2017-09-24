@@ -3,9 +3,11 @@ from TestRoot import AbstractSrc
 
 class RSTPSrc(AbstractSrc):
     def __init__(self):        
-        self.P = None        
+        self.P = None
+        self.P_star = None
         self.D = None
-        self.V = None        
+        self.V = None
+        self.V_star = None
         self.M = None
         self.E = None
         self.U = None
@@ -88,9 +90,9 @@ class RSTPODEImplicitSrc(RSTPSrc):
         Vj_avg = (self.V[j]+self.V[j+1])/2 
                 
         if Vj_avg > 0:
-            S = self.M[j]/delta_t - (1-self.alpha)*((self.M[j]*Vj_avg-self.M[j-1]*Vi_avg)/delta_x) - ((self.P[j]-self.P[j-1])/delta_x)
+            S = self.M[j]/delta_t - (1-self.alpha)*((self.M[j]*Vj_avg-self.M[j-1]*Vi_avg)/delta_x) - self.alpha*((self.P_star[j]-self.P_star[j-1])/delta_x) - (1-self.alpha)*((self.P[j]-self.P[j-1])/delta_x)
         else:
-            S = self.M[j]/delta_t - (1-self.alpha)*((self.M[j+1]*Vj_avg-self.M[j]*Vi_avg)/delta_x) - ((self.P[j]-self.P[j-1])/delta_x)
+            S = self.M[j]/delta_t - (1-self.alpha)*((self.M[j+1]*Vj_avg-self.M[j]*Vi_avg)/delta_x) - self.alpha*((self.P_star[j]-self.P_star[j-1])/delta_x) - (1-self.alpha)*((self.P[j]-self.P[j-1])/delta_x)
         
         return S
     
@@ -107,15 +109,15 @@ class RSTPODEImplicitSrc(RSTPSrc):
         mu = delta_t*delta_x
         if self.V[j] > 0:
             c = 0
-            b1 = (delta_x+self.alpha*self.V[j+1]*delta_t)/mu
-            a = (-self.alpha*self.V[j])/delta_x
+            b1 = (delta_x+self.alpha*self.V_star[j+1]*delta_t)/mu
+            a = (-self.alpha*self.V_star[j])/delta_x
         else:
-            c = (self.alpha*self.V[j+1])/delta_x
-            b1 = (delta_x-self.alpha*self.V[j]*delta_t)/mu
+            c = (self.alpha*self.V_star[j+1])/delta_x
+            b1 = (delta_x-self.alpha*self.V_star[j]*delta_t)/mu
             a = 0
         
         if self.U_new[j] != 0:
-            b2 =  -(self.gamma-1)* (delta_x*(self.U_new[j]-self.U[j]) + delta_t*(self.V[j+1]-self.V[j])) / (self.U_new[j]*mu)
+            b2 =  -(self.gamma-1)* (delta_x*(self.U_new[j]-self.U[j]) + delta_t*(self.V_star[j+1]-self.V_star[j])) / (self.U_new[j]*mu)
         else:
             b2 = 0
              

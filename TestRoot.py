@@ -29,6 +29,7 @@ class Params:
         self.tmax = 1
         self.fpath = '.'
         self.name = id
+        self.iter_count = 1
 
     def set_spatial_limits(self,xmin,xmax):
         self.xmin = xmin
