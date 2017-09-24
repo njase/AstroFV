@@ -16,13 +16,14 @@ class RSTPExplicitParams(Params):
         #self.alpha is NA and not defined
 
 class RSTPImplicitParams(Params):
-    def __init__(self,ncells,alpha,gamma=0):
+    def __init__(self,ncells,alpha,gamma=0,iter_count=1):
         Params.__init__(self,"implicit") 
         self.gamma = gamma
         self.ncells = ncells
         self.alpha = alpha
         self.fv_boundary_strategy = None        
-        self.cfl = 0.30 #This parameter is not user defined
+        self.cfl = 0.50 #This parameter is not user defined
+        self.iter_count = iter_count
         
 class RSTPIV(InitialValues):
     def __init__(self,Vx,Mx,D,Rho):
@@ -146,6 +147,14 @@ class RSTPTest(AbstractTest):
         return False
     
     def solve(self,stopFunc=None,collect_cnt=10):    
+        ###For debugging
+        rstp_debug = False
+        
+        if rstp_debug == True:
+            f = open("op_"+str(self.test_id)+".log",'w')
+        else:
+            f = None
+        
         if stopFunc is None:
             stopFunc = self.noStop
             
@@ -167,6 +176,9 @@ class RSTPTest(AbstractTest):
             Edn[0:] = Pn/(self.params.gamma-1)
             
         Utn = np.zeros(numj)
+        Vxn_iter = Vxn
+        Pn_iter = Pn
+        
         #For Extrapolation using last 5 values
         Ut_old = np.zeros((5,numj))
         pdegree = 2
@@ -186,47 +198,84 @@ class RSTPTest(AbstractTest):
         for n in range(0,nsteps):
             if n%100 == 0:
                 print('\n' + 'Simulation ongoing at n = ' + str(n))
+                
+            if f:
+                f.write('Simulation ongoing at n = ' + str(n) + '\n')
+                f.write('Before iteration' + '\n')
+                f.write('D = ' + str(Dn) + '\n')
+                f.write('V = ' + str(Vxn) + '\n')
+                f.write('M = ' + str(Mxn) + '\n')
+                f.write('E = ' + str(Edn) + '\n')
             
-            #Solve first equation
-            Dn_1 = self.solve_density_eqn(Dn,Vxn,delta_t,delta_x)
+            for sub_iter in range(0,self.params.iter_count):
+                print('\n' + 'Sub iteration = ' + str(sub_iter))
+                
+                #Solve first equation
+                self.src.D = Dn
+                self.src.V = Vxn
+                Dn_1 = self.solve_density_eqn(Dn,Vxn_iter,delta_t,delta_x)
             
-            #Solve second equation
-            Mxn_1 = self.solve_momentum_eqn(Mxn,Vxn,Pn,delta_t,delta_x)
+                #Solve second equation
+                self.src.P = Pn
+                self.src.P_star = Pn_iter
+                self.src.V = Vxn
+                self.src.M = Mxn
+                Mxn_1 = self.solve_momentum_eqn(Mxn,Vxn_iter,Pn_iter,delta_t,delta_x)
             
-            #Solve third equation
-            if self.params.gamma != 0: #isothermal case
-                # Predict Ut(n+1)
-                Ut_fut = self.predict_Ut(Ut_old,pdegree)
-                print '.', #progress bar
-                Edn_1 = self.solve_energy_eqn(Edn,Vxn,Utn,Ut_fut,delta_t,delta_x)
-            else:
-                Edn_1 = Edn
+                #Solve third equation
+                if self.params.gamma != 0: #isothermal case
+                    # Predict Ut(n+1)
+                    Ut_fut = self.predict_Ut(Ut_old,pdegree)
+                    print '.', #progress bar
+                    
+                    self.src.E = Edn
+                    self.src.V = Vxn
+                    self.src.V_star = Vxn_iter
+                    self.src.U = Utn
+                    self.src.U_new = Ut_fut
+                    Edn_1 = self.solve_energy_eqn(Edn,Vxn_iter,Utn,Ut_fut,delta_t,delta_x)
+                else:
+                    Edn_1 = Edn
             
-            ### Update phase        
-            Dh = self.calculate_Dh(self.params.gamma,Dn_1,Edn_1)
-            Mt = self.calculate_Mt(Dh,Mxn_1)
+                ### Update phase        
+                Dh = self.calculate_Dh(self.params.gamma,Dn_1,Edn_1)
+                Mt = self.calculate_Mt(Dh,Mxn_1)
             
-            #update Ut
-            Utn_1 = self.update_Ut(Dh,Mt)
+                #update Ut
+                Utn_1 = self.update_Ut(Dh,Mt)
 
-            #Update Vx    
-            Vxn_1 = self.update_Vx(Mxn_1,Mt)
+                #Update Vx    
+                Vxn_1 = self.update_Vx(Mxn_1,Mt)
 
-            #Update density
-            Rhon_1 = self.update_rho(Dn_1,Utn_1)
+                #Update density
+                Rhon_1 = self.update_rho(Dn_1,Utn_1)
 
-            #Update pressure
-            Pn_1 = self.update_pressure(self.params.gamma,Rhon_1,Edn_1,Utn_1)
+                #Update pressure
+                Pn_1 = self.update_pressure(self.params.gamma,Rhon_1,Edn_1,Utn_1)
+                
+                #Prepare for sub-iteration or iteration (if loop ends)
+                Vxn_iter = Vxn_1
+                Pn_iter = Pn_1
 
             Dn = Dn_1
             Mxn = Mxn_1
             Rhon = Rhon_1
             Vxn = Vxn_1
+            #Vxn_iter = Vxn_1
             Utn = Utn_1
             Pn = Pn_1
+            #Pn_iter = Pn_1
             Edn = Edn_1
             Ut_old[0:-1,:] = Ut_old[1:,:]
             Ut_old[-1,:] = Utn_1
+            
+            
+            if f:
+                f.write('After iteration' + '\n')
+                f.write('D = ' + str(Dn) + '\n')
+                f.write('V = ' + str(Vxn) + '\n')
+                f.write('M = ' + str(Mxn) + '\n')
+                f.write('E = ' + str(Edn) + '\n')
             
             # If shock wave is close to the boundary, stop!
             if abs(Utn[xbreak]-min(Utn)) > 0.1:
@@ -244,18 +293,15 @@ class RSTPTest(AbstractTest):
 
         self.save_figures()        
         print('\n' + 'Simulation stopped')
+        if f:
+            f.close()
     
     #Conservative equation solved in cell centered manner with Transvere boundary conditions
-    def solve_density_eqn(self,Dn,Vx,delta_t,delta_x):
-        self.src.D = Dn
-        self.src.V = Vx
+    def solve_density_eqn(self,Dn,Vx,delta_t,delta_x):        
         D = self.odesolver.solve_conservative_without_outerloop(delta_t,delta_x,Dn,Vx,self.D_eqid,cc=True)
         return D
     
     def solve_momentum_eqn(self,Mxn,Vx,P,delta_t,delta_x):
-        self.src.P = P 
-        self.src.V = Vx
-        self.src.M = Mxn
         M = self.odesolver.solve_non_conservative_without_outerloop(delta_t,delta_x,Mxn,Vx,self.M_eqid,cc=False)
         return M
     
@@ -271,11 +317,6 @@ class RSTPTest(AbstractTest):
     
     
     def solve_energy_eqn(self,Edn,Vx,Ut,Ut_fut,delta_t,delta_x):
-        self.src.E = Edn
-        self.src.V = Vx
-        self.src.U = Ut
-        self.src.U_new = Ut_fut
-        
         if self.odesolver.get_name() == "implicit":
             E = self.odesolver.solve_user_defined_without_outerloop(self.params.ncells,delta_t,delta_x,self.E_eqid,cc=True)
         else:
