@@ -105,7 +105,7 @@ Using first order upwinding with constant grid size
 Constant grid size is used
 
 We use cell centered FV discretization for Density and Momentum conservation and vertex centered FV discretization  for Total energy. This is shown below
-(images/fv_cells.jpeg)
+![FV Cells for RSTP](images/fv_cells.jpeg)
 
 For vertex centered approach, the transport velocity at FV cell surface is taken as the mean value across the boundary. i.e
 
@@ -274,7 +274,7 @@ which when re-arranged gives a tridiagonal system of equations as follows:
  The 4 image files correspond to plot of spatial variable x against Relativistic Density (D), Pressure(P), Lorentz factor (<a  href="https://www.codecogs.com/eqnedit.php?latex=\bg_white&space;u^{t}" target="_blank"><img src="https://latex.codecogs.com/png.latex?\bg_white&space;u^{t}" title="u^{t}" /></a>) and Transport Velocity (<a href="https://www.codecogs.com/eqnedit.php?latex=\bg_white&space;V^x" target="_blank"><img src="https://latex.codecogs.com/png.latex?\bg_white&space;V^x"  title="V^x" /></a>) respectively
 
 An example is shown below:
-(images/D_img.png)
-(images/P_img.png)
-(images/U_img.png)
-(images/V_img.png)
+![RSTP Relativistic Density](images/D_img.png)
+![RSTP Pressure](images/P_img.png)
+![RSTP Lorentz factor](images/U_img.png)
+![RSTP Transport Velocity](images/V_img.png)
