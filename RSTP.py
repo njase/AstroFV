@@ -115,7 +115,7 @@ class RSTPTest(AbstractTest):
         plt.figure(self.fh_v)
         self.ax_v.set_xlabel('x')
         self.ax_v.set_ylabel('Vx(x,t)')
-        self.ax_v.set_title('Velocity Vx')
+        self.ax_v.set_title('Transport Velocity Vx')
         plt.legend(loc=1)
         fpath = self.params.fpath + str(self.test_id) + '_V_img.png'
         plt.savefig(fpath)
@@ -128,7 +128,7 @@ class RSTPTest(AbstractTest):
         plt.figure(self.fh_u)
         self.ax_u.set_xlabel('x')
         self.ax_u.set_ylabel('Ut(x,t)')
-        self.ax_u.set_title('Velocity Ut')
+        self.ax_u.set_title('Lorentz Factor Ut')
         plt.legend(loc=1)
         fpath = self.params.fpath + str(self.test_id) + '_U_img.png'
         plt.savefig(fpath)
