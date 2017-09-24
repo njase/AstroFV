@@ -16,13 +16,13 @@ class RSTPExplicitParams(Params):
         #self.alpha is NA and not defined
 
 class RSTPImplicitParams(Params):
-    def __init__(self,ncells,alpha,gamma=0,iter_count=1):
+    def __init__(self,ncells,alpha,gamma=0,iter_count=1,cfl=0.50):
         Params.__init__(self,"implicit") 
         self.gamma = gamma
         self.ncells = ncells
         self.alpha = alpha
         self.fv_boundary_strategy = None        
-        self.cfl = 0.50 #This parameter is not user defined
+        self.cfl = cfl #This parameter is typically not user defined
         self.iter_count = iter_count
         
 class RSTPIV(InitialValues):
@@ -208,7 +208,7 @@ class RSTPTest(AbstractTest):
                 f.write('E = ' + str(Edn) + '\n')
             
             for sub_iter in range(0,self.params.iter_count):
-                print('\n' + 'Sub iteration = ' + str(sub_iter))
+                #print 'Sub iteration = ' + str(sub_iter), #progress bar                
                 
                 #Solve first equation
                 self.src.D = Dn
